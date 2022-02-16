@@ -26,7 +26,7 @@ In a world where all browsers support OOPIF and page isolation, we can simply pu
 The fundamental idea is that if we leverage page isolation we can create a more flexible solution than what exists today using only BrowsingContext groups.
 
 
-## Introducing Cross-Page-Window-Proxy-Policy
+## Cross-Page-Window-Proxy-Policy as mean for process isolation
 The solution we propose is to add (yet) another header policy, meant for the top level document: Cross-Page-Window-Proxy-Policy. It says: _"This page is not interested in communicating synchronously with other pages, unless they're same-origin and have the same policy."_
 
 By doing that, we essentially modify the keying of AgentClusters, that groups all documents within a BrowsingContext group, as long as they were same origin. We now say that on top of being same-origin they must have the same Cross-Page-Window-Proxy-Policy. We can now have Cross-Page-Window-Proxy-Policy + COEP enable crossOriginIsolated:
