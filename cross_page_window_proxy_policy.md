@@ -1,12 +1,21 @@
 # Cross-Page-Window-Proxy-Policy explainer
 
+## Terminology
+In this explainer, we call _document_ what is renderer by any individual frame. A _page_ contains the top level document, as well as all of its iframe documents, if any. When you open a popup, you get a second page.
+
 ## Motivations
 Cross-Origin-Opener-Policy (COOP) and Cross-Origin-Embedder-Policy (COEP) have now been available for a while and with them the gating of certain powerful APIs like SharedArrayBuffer behind the crossOriginIsolated bit. This bit is turned to true when COOP is Same-Origin, COEP: require-corp or credentialless, and for subframes, when their top level document sets the crossOriginIsolated Permissions-Policy. Deployment has been slow and there are still significant pain points for web developers wishing to use these headers. Permissions-Policy is easy to deploy, and COEP has been at the core of previous efforts, with features like credentialless being designed explicitly to help with deployment. This document focuses on the difficulties raised by COOP in particular.
 
 Maybe it is interesting to get back to the core of what COOP does. It restricts what BrowsingContext can and cannot be in a BrowsingContext group, depending on their top-level origin and COOP value. The initial goal was to be able to put different pages in different processes without breaking scripting invariants. That's important because crossOriginIsolated only applies to entire processes. By severing the opener/openee link, it made sure that two pages wouldn't be able to communicate with each other and that they could be put in different processes. For some use cases however, this does not provide a satisfactory solution.
 
-Currently, all pages that have legitimate interactions with cross-origin popups and that want to use COOP need to set COOP: Same-Origin-Allow-Popups. That implies that the main page cannot be crossOriginIsolated, and that the popup must have COOP: Unsafe-None. This is not ideal, as cross-origin popups are used for important features like OAuth and payments, that do not have an alternative. On top of that, popups providing these services would like to also protect themselves against side-channel leaks using COOP.
+</br>
 
+![image](resources/coop_basic_issue.png)  
+_The basic case COOP solves. We have to put all the documents in the same process, because the popup and the iframe are of origin b.com and they have synchronous access to each other._
+
+</br>
+
+Currently, all pages that have legitimate interactions with cross-origin popups and that want to use COOP need to set COOP: Same-Origin-Allow-Popups. That implies that the main page cannot be crossOriginIsolated, and that the popup must have COOP: Unsafe-None. This is not ideal, as cross-origin popups are used for important features like OAuth and payments, that do not have an alternative. On top of that, popups providing these services would like to also protect themselves against side-channel leaks using COOP.
 
 
 ## Changing our approach
@@ -28,6 +37,13 @@ The fundamental idea is that if we leverage page isolation we can create a more 
 
 ## Cross-Page-Window-Proxy-Policy as mean for process isolation
 The solution we propose is to add (yet) another header policy, meant for the top level document: Cross-Page-Window-Proxy-Policy. It says: _"This page is not interested in communicating synchronously with other pages, unless they're same-origin and have the same policy."_
+
+</br>
+
+![image](resources/post_copwpp_diagram.png)  
+_We leverage page isolation, that guarantees that asynchronous communications are possible from different processes. The typical COOP case is not an issue anymore._
+
+</br>
 
 By doing that, we essentially modify the keying of AgentClusters, that groups all documents within a BrowsingContext group, as long as they were same origin. We now say that on top of being same-origin they must have the same Cross-Page-Window-Proxy-Policy. We can now have Cross-Page-Window-Proxy-Policy + COEP enable crossOriginIsolated:
 
