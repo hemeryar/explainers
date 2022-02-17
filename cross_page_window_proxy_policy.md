@@ -11,7 +11,7 @@ Maybe it is interesting to get back to the core of what COOP does. It restricts 
 </br>
 
 ![image](resources/coop_basic_issue.png)  
-_The basic case COOP solves. We have to put all the documents in the same process, because the popup and the iframe are of origin b.com and they have synchronous access to each other._
+_The basic case COOP solves. Without COOP, we have to put all the documents in the same process, because the popup and the iframe are of origin b.com and they have synchronous access to each other._
 
 </br>
 
