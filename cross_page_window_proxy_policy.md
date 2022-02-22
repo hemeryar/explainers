@@ -45,25 +45,34 @@ _We leverage page isolation, that guarantees that asynchronous communications ar
 
 </br>
 
-By doing that, we essentially modify the keying of AgentClusters, that groups all documents within a BrowsingContext group, as long as they were same origin. We now say that on top of being same-origin they must have the same Cross-Page-Window-Proxy-Policy. We can now have Cross-Page-Window-Proxy-Policy + COEP enable crossOriginIsolated:
+By doing that, we essentially modify the keying of AgentClusters. Currently, they group all documents within a BrowsingContext group if they are same origin. We now say that on top of being same-origin they must be part of pages that have compatible Cross-Page-Window-Proxy-Policy. That means having Agent Clusters keyed by:
 
-* Cross-Page-Window-Proxy-Policy applies to entire pages, so the state is consistent within a page.
-* COEP is consistent within a page, or iframes will not load.
-* crossOriginIsolated is consistent within a page.
-* Page isolation is well supported by browsers.
+* Origin
+* Top level origin
+* Cross-Page-Window-Proxy-Policy
+
+Cross-Page-Window-Proxy-Policy applies to entire pages, and so does COEP (indirectly, because iframes will not load if they do not set COEP as well). Access to other pages that do not share the same Cross-Page-Window-Proxy-Policy is asynchronous only. Since page isolation is well supported by browsers, we can put these different pages in different processes. We can enable crossOriginIsolated if we additionally key AgentClusters with crossOriginIsolated, to prevent two pages with the same Cross-Page-Window-Proxy-Policy, one with COEP and one without to communicate with each other.
 
 Integrating with cross-origin popup flows only requires asynchronous communication since they're cross-origin. These flow can work as intended. We've solved the first integration issue of having both crossOriginIsolated and a popup flow.
 
 ## Using Cross-Page-Window-Proxy-Policy for side-channel protection
 The problem of providing side-channel protection is still not solved. This is what the specific values of the 
-Cross-Page-Window-Proxy-Policy are meant for. For now we plan to only give it only one possible value:
-* Opener-Close-PostMessage
+Cross-Page-Window-Proxy-Policy are meant for. For now we plan to only give it only one possible value, closed-opener-postMessage.
 
-On top of limiting synchronous communications with same-origin pages that do not share this policy, it would also prevent all asynchronous access to WindowProxies for things that are not window.closed(), window.opener() and window.postMessage. 
+On top of limiting synchronous communications with same-origin pages that do not share this policy, it would also prevent all asynchronous access to WindowProxies for things that are not window.closed(), window.opener() and window.postMessage. Some metrics were produced in chrome to help determine if we could have a single value or if the policy would need to have finer grain.
 
-Some [metrics](https://docs.google.com/spreadsheets/d/1fzqEzyINWlDCo-yIeasWiCdEBF3MG8pbIQlC4wiUiug/edit#gid=0) were produced in chrome to help determine if we could have a single value or if the policy would need to have finer grain. What comes out of it is that preserving these windowProxy attributes works for an overwhelming majority.
+![image](resources/cross_page_access_metrics.png)
+
+Preserving these windowProxy attributes works for an overwhelming majority.
 
 ## Interactions with COOP
-We could also ask whether COOP: Same-Origin-Allow-Popups is still useful. The short answer is yes, because it not only says _"I'm okay preserving scripability to popups I open"_. It also says _"I'm not okay being opened as a popup"_. This is not something you cannot achieve using only Cross-Page-Window-Proxy-Policy.
+We could also ask whether COOP: Same-Origin-Allow-Popups is still useful. The short answer is yes, because it not only says _"I'm okay preserving scripability to popups I open"_. It also says _"I'm generally not okay being opened as a popup"_. This is not something you can achieve using only Cross-Page-Window-Proxy-Policy.
 
-TODO: INTERACTION BETWEEN crossOriginIsolated via COOP: Same-Origin and COPWPP.
+The feature also interacts with COOP: Same-Origin-Plus-Coep. Because of COOP: Same-Origin, we're sure that the entire BrowsingContext group will share the same top-level origin and COOP. Inside that, with the current proposal, we preserve the possibility for multiple connected crossOriginIsolated pages to make same-origin communication asynchronous and restricted to a number of selected properties.
+
+## Security measures
+DOM access is not the only thing that is gated behind same-origin restrictions. We audited the spec to produce a [list](https://docs.google.com/spreadsheets/d/1e6LakHSKTD22XEYfULUJqUZEdLnzynMaZCefUe1zlRc/) of all places with such checks. Three points need specific attention:
+
+* The location object is quite sensitive and many of its methods/members are same-origin only. It is purposefully excluded from the list of allowed attributes in the Cross-Page-Window-Proxy-Policy value, despite fairly high usage. We do not think we should allow a normal page to navigate a crossOriginIsolated page.
+* For the same reason, we do not think name targeting should resolve for pages with different Cross-Page-Window-Proxy-Policy or crossOriginIsolated values. They can still be of different origin if not crossOriginIsolated.
+* Javascript navigations are a big NO. They mean executing arbitrary javascript within the target frame. There should be no way to navigate a frame from a different AgentCluster given the restrictions above, but including an extra restriction here would still be a safety guarantee.
