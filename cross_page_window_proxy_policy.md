@@ -1,39 +1,34 @@
 # Cross-Page-Window-Proxy-Policy explainer
 
 ## Terminology
-In this explainer, we call _document_ what is renderer by any individual frame. A _page_ contains the top level document, as well as all of its iframe documents, if any. When you open a popup, you get a second page.
+In this explainer, we call _document_ what is rendered by any individual frame. A _page_ contains the top level document, as well as all of its iframe documents, if any. When you open a popup, you get a second page.
 
 ## Motivations
-Cross-Origin-Opener-Policy (COOP) and Cross-Origin-Embedder-Policy (COEP) have now been available for a while and with them the gating of certain powerful APIs like SharedArrayBuffer behind the crossOriginIsolated bit. This bit is turned to true when COOP is Same-Origin, COEP: require-corp or credentialless, and for subframes, when their top level document sets the crossOriginIsolated Permissions-Policy. Deployment has been slow and there are still significant pain points for web developers wishing to use these headers. Permissions-Policy is easy to deploy, and COEP has been at the core of previous efforts, with features like credentialless being designed explicitly to help with deployment. This document focuses on the difficulties raised by COOP in particular.
+Websites want to use a bunch of APIs like SharedArrayBuffers because they improve performance of resource heavy web applications like video conferencing apps or doc edition apps for example. These APIs are considered dangerous because they can be used to create high precision timers that enable much easier exploitation of Spectre. For that reason, they should only be used for documents that can be process isolated, and that's what browsers have done with crossOriginIsolated. This bit is turned to true when COOP is Same-Origin, COEP: require-corp or credentialless, and for subframes, when their top level document sets the crossOriginIsolated Permissions-Policy.
 
-Maybe it is interesting to get back to the core of what COOP does. It restricts what BrowsingContext can and cannot be in a BrowsingContext group, depending on their top-level origin and COOP value. The initial goal was to be able to put different pages in different processes without breaking scripting invariants. That's important because crossOriginIsolated only applies to entire processes. By severing the opener/openee link, it made sure that two pages wouldn't be able to communicate with each other and that they could be put in different processes. For some use cases however, this does not provide a satisfactory solution.
+Cross-Origin-Opener-Policy (COOP) and Cross-Origin-Embedder-Policy (COEP) have now been available for a while, but deployment has been slow and there are still significant pain points for web developers wishing to use these headers. Permissions-Policy is easy to deploy, and COEP has been at the core of previous efforts, with features like credentialless being designed explicitly to help with deployment. This document focuses on the difficulties raised by COOP.
+
+Currently, all pages that have legitimate interactions with cross-origin popups and that want to use COOP need to set COOP: Same-Origin-Allow-Popups and the popup needs to set COOP: Unsafe-None. Cross-origin popups are used for important features like OAuth and payments, that cannot be implemented in a different way. That means any page that uses one of these services cannot use SharedArrayBuffers. It also means that cross-origin service providers cannot set a COOP value to protect themselves against side-channel leaks.
+
+## Changing our approach
+It is interesting to get back to the core of what COOP does. It restricts what BrowsingContext can and cannot be in a BrowsingContext group, depending on their top-level origin and COOP value. The initial goal was to be able to put different pages in different processes without breaking scripting invariants, without making assumptions about browser capabilities:
+
+* Synchronous access of DOM requires that the documents live in the same process.
+* Asynchronous access of a popup's windowProxy property can be out of process, if the browser supports page isolation. Page isolation is the capability to communicate asynchronously between two pages when they live in two different processes.
+* Asynchronous access of an iframe's windowProxy property can be out of process, if the browser supports out-of-process iframes (OOPIF). OOPIF is the capability to communicate asynchronously between an iframe and another document when they live in another process. Note that this has an important impact on memory.
+
+By severing the opener/openee link, it made sure that two pages wouldn't be able to communicate with each other and that they could be put in different processes, regardless of whether we have page isolation or OOPIF. For some use cases however, this does not provide a satisfactory solution.
 
 </br>
 
 ![image](resources/coop_basic_issue.png)  
-_The basic case COOP solves. Without COOP, we have to put all the documents in the same process, because the popup and the iframe are of origin b.com and they have synchronous access to each other._
+_The basic case COOP solves. Without COOP, we have to put all the documents in the same process, because the popup and the iframe are of origin b.com and have synchronous access to each other._
 
 </br>
 
-Currently, all pages that have legitimate interactions with cross-origin popups and that want to use COOP need to set COOP: Same-Origin-Allow-Popups. That implies that the main page cannot be crossOriginIsolated, and that the popup must have COOP: Unsafe-None. This is not ideal, as cross-origin popups are used for important features like OAuth and payments, that do not have an alternative. On top of that, popups providing these services would like to also protect themselves against side-channel leaks using COOP.
+In the specification, documents that have synchronous DOM access live in the same AgentCluster. Pages that have asynchronous WindowProxy access live in the same BrowsingContext group. That means all documents in an AgentCluster must live in the same process, and that there is no fundamental reason why a BrowsingContext group should be represented by a single process, it is only an implementation limitation.
 
-
-## Changing our approach
-We said above that COOP had to go around some basic scripting invariants. They are:
-
-* Synchronous access of DOM requires that the documents live in the same process.
-* Asynchronous access of a popup's windowProxy property can be out of process, if the browser supports page isolation.
-* Asynchronous access of an iframe's windowProxy property can be out of process, if the browser supports out-of-process iframes (OOPIF).
-
-In the specification, documents that have synchronous DOM access live in the same AgentCluster. Pages that have asynchronous WindowProxy access live in the same BrowsingContext group. By adding these constructs with the invariants above we get that:
-
-* All documents in an AgentCluster must live in the same process.
-* There is no fundamental reason why a BrowsingContext group should be represented by a single process, only implementation limitations.
-
-In a world where all browsers support OOPIF and page isolation, we can simply put same origin documents within their own process, without having COOP in the first place. Realistically, this is not the case for OOPIF, but it is the case for page isolation. Both Firefox and Safari support page isolation, and it is a reasonable thing to expect.
-
-The fundamental idea is that if we leverage page isolation we can create a more flexible solution than what exists today using only BrowsingContext groups.
-
+In a world where all browsers support OOPIF and page isolation, we can simply put same origin documents within their own process, without having COOP in the first place. Realistically, this is not the case for OOPIF, but it is the case for page isolation. Both Firefox and Safari support page isolation, and it is a reasonable thing to expect. Memory footprint is reasonably low because popups are quite rare on the web while iframes are everywhere. The fundamental idea is that if we leverage page isolation we can create a more flexible solution than what exists today using only BrowsingContext groups.
 
 ## Cross-Page-Window-Proxy-Policy as a mean for process isolation
 The solution we propose is to add (yet) another header policy, meant for the top level document: Cross-Page-Window-Proxy-Policy. It says: _"This page is not interested in communicating synchronously with other pages, unless they're same-origin and have the same policy."_
