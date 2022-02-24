@@ -35,7 +35,7 @@ In a world where all browsers support OOPIF and page isolation, we can simply pu
 The fundamental idea is that if we leverage page isolation we can create a more flexible solution than what exists today using only BrowsingContext groups.
 
 
-## Cross-Page-Window-Proxy-Policy as mean for process isolation
+## Cross-Page-Window-Proxy-Policy as a mean for process isolation
 The solution we propose is to add (yet) another header policy, meant for the top level document: Cross-Page-Window-Proxy-Policy. It says: _"This page is not interested in communicating synchronously with other pages, unless they're same-origin and have the same policy."_
 
 </br>
@@ -59,11 +59,7 @@ Integrating with cross-origin popup flows only requires asynchronous communicati
 The problem of providing side-channel protection is still not solved. This is what the specific values of the 
 Cross-Page-Window-Proxy-Policy are meant for. For now we plan to only give it only one possible value, closed-opener-postMessage.
 
-On top of limiting synchronous communications with same-origin pages that do not share this policy, it would also prevent all asynchronous access to WindowProxies for things that are not window.closed(), window.opener() and window.postMessage. Some metrics were produced in chrome to help determine if we could have a single value or if the policy would need to have finer grain.
-
-![image](resources/cross_page_access_metrics.png)
-
-Preserving these windowProxy attributes works for an overwhelming majority.
+On top of limiting synchronous communications with same-origin pages that do not share this policy, it would also prevent all asynchronous access to WindowProxies for things that are not window.closed(), window.opener() and window.postMessage. Some metrics were produced in chrome to help determine if we could have a single value or if the policy would need to have finer grain. Preserving these windowProxy attributes works for an overwhelming majority.
 
 ## Interactions with COOP
 We could also ask whether COOP: Same-Origin-Allow-Popups is still useful. The short answer is yes, because it not only says _"I'm okay preserving scripability to popups I open"_. It also says _"I'm generally not okay being opened as a popup"_. This is not something you can achieve using only Cross-Page-Window-Proxy-Policy.
