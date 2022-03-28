@@ -42,8 +42,6 @@ This is not currently possible in the HTML spec because no "relationship" exists
 
 An alternative would be to not swap BrowsingContext group and add top-level origin, popup policy and cross-origin isolation state to the AgentCluster, to prevent synchronous communications across the opener link, all within a BrowsingContext group. The first solution has the benefit of keeping the AgentCluster simple (just an origin or a site), while preserving all the usual behavior of BrowsingContext groups (including things like name targeting, etc.).
 
-TODO: Describe navigating popups to a different BCG in a popup, do we preserve the link?
-
 ## Interactions with other COOP values
 The COOP algorithm needs to be adapted slightly. Since there is currently only one type of "BCG swap", everything works well, but we need to redefine which type of swap happens when there is two possibilities. One way we can tackle this is:
 
@@ -54,6 +52,12 @@ The COOP algorithm needs to be adapted slightly. Since there is currently only o
 To sum up, `Popups` can be opened by `Unsafe-None` or `Same-Origin-Allow-Popups` in a different BCG with opener, and can open `Unsafe-None` in a different BCG with opener. The only practical modification needed is the extra special case in `Same-Origin-Allow-Popups` algorithm.
 
 We could also ask whether COOP: `Same-Origin-Allow-Popups` is still useful. It says both _"I'm okay preserving scripability to popups I open"_ but _"I'm not okay being opened as a popup"_. This is not something you can achieve using `Popups` which is symetrical. Whether or not we want to preserve this capability is not yet decided.
+
+## Maintaining the BrowsingContext group opener across navigations.
+
+We also need to think about how to handle this new type of opener across navigations, as pointed out [here](https://github.com/whatwg/html/issues/7713#issuecomment-1072288631). The goal is to allow for simple redirect use cases, while never ending up in a situation that would not be possible by directly opening of the popup. What seems reasonable is that when we swap BCG, and the current BCG holds opener information, we do a COOP comparison between the opener BCG and the new BCG to see if that link is maintained.
+
+Also note that since having an opener link between BrwosingContext groups does not imply a drop in security but simply very slightly increases the surface for side-channels, we can keep the link for all BCG swaps apart from the COOP one, where it's used explicitly to prevent such leakage.
 
 ## Security notes
 Purposefully chosing the absolute minimum set of windowProxy attributes to make OAuth possible helps prevent side-channel leaks, which has been a concern both for openers and openees.
