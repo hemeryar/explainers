@@ -47,17 +47,17 @@ The COOP algorithm needs to be adapted slightly. Since there is currently only o
 
 - We always do a BCG swap without an opener when `Same-Origin` is involved.
 - `Same-Origin-Allow-Popups` can open `Unsafe-None` in the same BCG, and `Popups` in a different BCG with an opener.
+- `Popups` can open and be opened by `Unsafe-None` in a different BCG with opener.
 - Pages with matching `Popups` and origins stay in the same BCG.
 
-To sum up, `Popups` can be opened by `Unsafe-None` or `Same-Origin-Allow-Popups` in a different BCG with opener, and can open `Unsafe-None` in a different BCG with opener. The only practical modification needed is the extra special case in `Same-Origin-Allow-Popups` algorithm.
+To sum up, `Popups` can be opened by `Unsafe-None` or `Same-Origin-Allow-Popups` in a different BCG with opener, and can open `Unsafe-None` in a different BCG with opener. The only practical modification needed is the extra special case in the `Same-Origin-Allow-Popups` algorithm.
 
-We could also ask whether COOP: `Same-Origin-Allow-Popups` is still useful. It says both _"I'm okay preserving scripability to popups I open"_ but _"I'm not okay being opened as a popup"_. This is not something you can achieve using `Popups` which is symetrical. Whether or not we want to preserve this capability is not yet decided.
+Spec writers must make sure that the rules between `Popups` and `Unsafe-None` are also applied on navigations, and not only openings, to make sure that redirects or sites that do not fully use the header can still benefit from it locally.
 
-## Maintaining the BrowsingContext group opener across navigations.
+We could also ask whether COOP: `Same-Origin-Allow-Popups` is still useful. It says both _"I'm okay preserving scripability to popups I open"_ but _"I'm not okay being opened as a popup"_. This is not something you can achieve using `Popups` which is symetrical. Whether or not we want to preserve this capability is not yet decided, and does not need to be until we have more data from users.
 
-We also need to think about how to handle this new type of opener across navigations, as pointed out [here](https://github.com/whatwg/html/issues/7713#issuecomment-1072288631). The goal is to allow for simple redirect use cases, while never ending up in a situation that would not be possible by directly opening of the popup. What seems reasonable is that when we swap BCG, and the current BCG holds opener information, we do a COOP comparison between the opener BCG and the new BCG to see if that link is maintained.
-
-Also note that since having an opener link between BrwosingContext groups does not imply a drop in security but simply very slightly increases the surface for side-channels, we can keep the link for all BCG swaps apart from the COOP one, where it's used explicitly to prevent such leakage.
+## Interactions with COOP reporting
+A new layer of virtuality is created by `Popups` in report-only modes. This is handled by having a virtual "opener is severed" boolean alongside the virtual browsing context group id, that allows to verify accesses, in a similar fashion to what was done previously for virtual browsing context group swaps.
 
 ## Security notes
 Purposefully chosing the absolute minimum set of windowProxy attributes to make OAuth possible helps prevent side-channel leaks, which has been a concern both for openers and openees.
