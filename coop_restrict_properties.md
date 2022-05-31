@@ -44,7 +44,6 @@ This would have the following properties:
 * Cross-origin popups opened, including all their iframes can only interact with the main page via postMessage and closed.
 * Same-origin popups would behave exactly the same. Since they do not share their AgentCluster they would lose DOM access.
 * Opener restriction is reversible. If a popup navigates to a `COOP: restrict-properties` page and then navigates again to a `COOP: unsafe-none` page, full access to the opener is possible again.
-* 
 
 ## Interactions with other COOP values
 The COOP algorithm needs to be adapted slightly. We want to consider `COOP: restrict-properties` as `COOP: unsafe-none` regarding BrowsingContext group swaps. `COOP: same-origin-allow-popups` should allow to stay in the same BrowsingContext group when opening a popup to a page with `COOP: restrict-properties`.
